@@ -1,0 +1,12 @@
+pandoc: '2.5'
+pkgdown: 1.6.1
+pkgdown_sha: ~
+articles:
+  customise_query: customise_query.html
+  opencage: opencage.html
+  output_options: output_options.html
+last_built: 2021-07-19T16:59Z
+urls:
+  reference: https://docs.ropensci.org/opencage/reference
+  article: https://docs.ropensci.org/opencage/articles
+

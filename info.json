@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "fcb444585450735cc71f99840a7583223063f053",
+    "author": "Daniel Possenriede <possenriede@gmail.com>",
+    "time": "2021-06-05 18:40:01",
+    "files": 1,
+    "merge": false,
+    "message": "update R-CMD-check workflow to R 4.1.0\n\nUse R 4.1.0 binaries for R-devel, see https://github.com/r-lib/actions/commit/229c250c6dd05746bbc224ed41e8265be24ea2e6\n"
+  },
+  "remote": "https://github.com/ropensci/opencage",
+  "pkg": "opencage"
+}
