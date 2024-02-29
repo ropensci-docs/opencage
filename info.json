@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "9b57eefa9725822d00e1e48417f5948eeeb15db1",
+    "author": "Daniel Possenriede <possenriede@gmail.com>",
+    "time": "2023-01-27 17:47:03",
+    "files": 33,
+    "merge": false,
+    "message": "chore: code style (#153)\n\n"
+  },
+  "repo": "https://github.com/ropensci/opencage",
+  "pkg": "opencage"
+}
