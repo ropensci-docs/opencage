@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "7b0bf05d7cea6d0140d91afe0c32f8f20f199bf3",
+    "author": "Daniel Possenriede <possenriede@gmail.com>",
+    "time": "2025-01-25T18:48:26Z",
+    "files": 6,
+    "merge": false,
+    "message": "Make tests more robust again (#165)\n\n* use different, hopefully more robust, coordinates for oc_reverse() tests\n\n* reset `oc_rate_sec` option\n\n* Update NEWS [skip CI]\n\n* ~~find~~ escape braces\n\ni.e. double-escape braces in DESCRIPTION so they are not \"lost\" in the generated package documentation.\ncf. https://github.com/r-lib/roxygen2/issues/1578"
+  },
+  "repo": "https://github.com/ropensci/opencage",
+  "pkg": "opencage",
+  "time": "2026-08-30T07:27:49Z"
+}

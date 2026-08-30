@@ -1,0 +1,524 @@
+# Customise your query
+
+Geocoding is surprisingly hard. Address formats and spellings differ in
+and between countries; administrative areas on different levels
+intersect; names, numbers, and boundaries change over time — you name
+it. The OpenCage API, therefore, supports about a dozen parameters to
+customise queries. This vignette explains how to use the query
+parameters with {opencage} to get better geocoding results.
+
+## Multiple results
+
+Forward geocoding typically returns multiple results because many places
+have the same or similar names.
+
+By default
+[`oc_forward_df()`](https://docs.ropensci.org/opencage/reference/oc_forward_df.md)
+only returns one result: the one defined as the best result by the
+OpenCage API. To receive more results, modify the `limit` argument,
+which specifies the maximum number of results that should be returned.
+Integer values between 1 and 100 are allowed.
+
+``` r
+
+oc_forward_df("Paris")
+#> # A tibble: 1 × 4
+#>   placename oc_lat oc_lng oc_formatted 
+#>   <chr>      <dbl>  <dbl> <chr>        
+#> 1 Paris       48.9   2.32 Paris, France
+```
+
+``` r
+
+oc_forward_df("Paris", limit = 5)
+#> # A tibble: 2 × 4
+#>   placename oc_lat oc_lng oc_formatted                          
+#>   <chr>      <dbl>  <dbl> <chr>                                 
+#> 1 Paris       48.9   2.35 Paris, France                         
+#> 2 Paris       33.7 -95.6  Paris, Texas, United States of America
+```
+
+Reverse geocoding only returns [at most one
+result](https://opencagedata.com/api#ranking). Therefore,
+[`oc_reverse_df()`](https://docs.ropensci.org/opencage/reference/oc_reverse_df.md)
+does not support the `limit` argument.
+
+OpenCage may sometimes have more than one record of one place.
+Duplicated records are not returned by default. If you set the
+`no_dedupe` argument to `TRUE`, you will receive duplicated results when
+available. (Yes, inverted argument names are confusing, but we just
+follow [OpenCage’s lead](https://opencagedata.com/api#optional-params)
+here. So, `no_dedupe = TRUE` means that you want duplicates.)
+
+``` r
+
+oc_forward_df("Paris", limit = 5, no_dedupe = TRUE)
+#> # A tibble: 4 × 4
+#>   placename oc_lat oc_lng oc_formatted                          
+#>   <chr>      <dbl>  <dbl> <chr>                                 
+#> 1 Paris       48.9   2.35 Paris, France                         
+#> 2 Paris       48.9   2.32 Paris, France                         
+#> 3 Paris       33.7 -95.6  Paris, Texas, United States of America
+#> 4 Paris       48.9   2.32 Paris, France
+```
+
+## Better targeted results
+
+As you can see, place names are often ambiguous. Happily, the OpenCage
+API has tools to deal with this problem. The `countrycode`, `bounds`,
+and `proximity` arguments can make the query more precise.
+`min_confidence` lets you limit the results to those with a specified
+confidence score (which is not necessarily the “best” or most “relevant”
+result, though). These parameters are only relevant and available for
+forward geocoding.
+
+### `countrycode`
+
+The `countrycode` parameter restricts the results to the given country.
+The country code is a two letter code as defined by the [ISO 3166-1
+Alpha 2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) standard.
+E.g. “AR” for Argentina, “FR” for France, and “NZ” for the New Zealand.
+
+``` r
+
+oc_forward_df(placename = "Paris", countrycode = "US", limit = 5)
+#> # A tibble: 5 × 4
+#>   placename oc_lat oc_lng oc_formatted                              
+#>   <chr>      <dbl>  <dbl> <chr>                                     
+#> 1 Paris       33.7  -95.6 Paris, Texas, United States of America    
+#> 2 Paris       38.2  -84.3 Paris, Kentucky, United States of America 
+#> 3 Paris       36.3  -88.3 Paris, Tennessee, United States of America
+#> 4 Paris       44.2  -70.5 Paris, ME 04281, United States of America 
+#> 5 Paris       35.3  -93.7 Paris, Arkansas, United States of America
+```
+
+Multiple countrycodes per `placename` must be wrapped in a list. Here is
+an example with places called “Paris” in Italy and Portugal.
+
+``` r
+
+oc_forward_df(placename = "Paris", countrycode = list(c("IT", "PT")), limit = 5)
+#> # A tibble: 5 × 4
+#>   placename oc_lat oc_lng oc_formatted                                                 
+#>   <chr>      <dbl>  <dbl> <chr>                                                        
+#> 1 Paris       46.5  10.4  23030 Valfurva SO, Italy                                     
+#> 2 Paris       44.6   7.28 Brossasco, Cuneo, Italy                                      
+#> 3 Paris       43.5  12.1  Paris, 52035 Monterchi AR, Italy                             
+#> 4 Paris       37.4  -8.79 Paris, 7630-581 Odemira, Portugal                            
+#> 5 Paris       45.7  13.1  Paris, Via dei Pini 22, 33054 Lignano Sabbiadoro Udine, Italy
+```
+
+Despite the name, country codes also exist for territories that are not
+independent states, e.g. Gibraltar (“GI”), Greenland (“GL”), Guadaloupe
+(“GP”), or Guam (“GU”). You can look up specific country codes with the
+{[ISOcodes](https://cran.r-project.org/package=ISOcodes)} or
+{[countrycodes](https://vincentarelbundock.github.io/countrycode/)}
+packages or on the [ISO](https://www.iso.org/obp/ui/#search/code/) or
+[Wikipedia](https://en.wikipedia.org/wiki/ISO_3166-1) webpages. In fact,
+you can also look up country codes via OpenCage as well. If you were
+interested in the country code of Curaçao for example, you could run:
+
+``` r
+
+oc_forward_df("Curaçao", no_annotations = FALSE)["oc_iso_3166_1_alpha_2"]
+#> # A tibble: 1 × 1
+#>   oc_iso_3166_1_alpha_2
+#>   <chr>                
+#> 1 CW
+```
+
+### `bounds`
+
+The `bounds` parameter restricts the possible results to a defined
+[bounding box](https://wiki.openstreetmap.org/wiki/Bounding_Box). A
+bounding box is a named numeric vector with four coordinates specifying
+its south-west and north-east corners: `(xmin, ymin, xmax, ymax)`. The
+bounds parameter can most easily be specified with the
+[`oc_bbox()`](https://docs.ropensci.org/opencage/reference/oc_bbox.md)
+helper. For example, `bounds = oc_bbox(-0.56, 51.28, 0.27, 51.68)`.
+OpenCage provides a
+‘[bounds-finder](https://opencagedata.com/bounds-finder)’ to
+interactively determine bounds values.
+
+Below is an example of the use of `bounds` where the bounding box
+specifies the the South American continent.
+
+``` r
+
+oc_forward_df(placename = "Paris", bounds = oc_bbox(-97, -56, -32, 12), limit = 5)
+#> # A tibble: 5 × 4
+#>   placename oc_lat oc_lng oc_formatted                                                       
+#>   <chr>      <dbl>  <dbl> <chr>                                                              
+#> 1 Paris       8.05  -80.6 Paris, Distrito de Parita, Panama                                  
+#> 2 Paris      -3.99  -79.2 110107, Loja, Ecuador                                              
+#> 3 Paris      -6.71  -69.9 Eirunepé, Região Geográfica Intermediária de Tefé, Brazil          
+#> 4 Paris     -13.5   -62.5 Canton Motegua, Municipio Baures, Provincia de Iténez, Bolivia     
+#> 5 Paris     -23.5   -47.5 Jardim Santa Fé, Sorocaba, Região Metropolitana de Sorocaba, Brazil
+```
+
+Again, you can also use {opencage} to determine a bounding box for
+subsequent queries. If you wanted to see how many Plaça d’Espanya there
+are on the Balearic Islands, for example, you could find the appropriate
+bounding box and then search for the squares:
+
+``` r
+
+hi <- oc_forward_df(placename = "Balearic Islands", no_annotations = FALSE)
+
+hi_bbox <-
+  oc_bbox(
+    hi$oc_southwest_lng,
+    hi$oc_southwest_lat,
+    hi$oc_northeast_lng,
+    hi$oc_northeast_lat
+  )
+
+oc_forward_df(placename = "Plaça d'Espanya", bounds = hi_bbox, limit = 20)
+#> # A tibble: 18 × 4
+#>    placename       oc_lat oc_lng oc_formatted                                                   
+#>    <chr>            <dbl>  <dbl> <chr>                                                          
+#>  1 Plaça d'Espanya   39.6   2.65 Plaça d'Espanya, Carrer d'Eusebi Estada, 07003 Palma, Spain    
+#>  2 Plaça d'Espanya   39.6   2.65 Plaça d'Espanya, Canavall, Palma, Balearic Islands, Spain      
+#>  3 Plaça d'Espanya   39.5   2.89 Plaça d'Espanya, 07620 Llucmajor, Spain                        
+#>  4 Plaça d'Espanya   39.0   1.30 Plaça d'Espanya, 07820 Sant Antoni de Portmany, Spain          
+#>  5 Plaça d'Espanya   39.0   1.53 Plaça d'Espanya, Santa Eulària des Riu, Balearic Islands, Spain
+#>  6 Plaça d'Espanya   38.9   1.44 Plaça d'Espanya, 07800 Ibiza, Spain                            
+#>  7 Plaça d'Espanya   39.9   4.27 Plaça d'Espanya, Maó, Spain                                    
+#>  8 Plaça d'Espanya   39.1   1.51 Plaça d'Espanya, Sant Joan de Labritja, Spain                  
+#>  9 Plaça d'Espanya   39.6   2.65 Plaça d'Espanya, 07002 Palma, Spain                            
+#> 10 Plaça d'Espanya   39.8   2.72 Plaça d'Espanya, 07100 Sóller, Spain                           
+#> 11 Plaça d'Espanya   39.6   2.90 Plaça d'Espanya, 07140 Sencelles, Spain                        
+#> 12 Plaça d'Espanya   39.6   2.75 Plaça d'Espanya, 07141 Marratxí, Spain                         
+#> 13 Plaça d'Espanya   39.7   2.91 Plaça d'Espanya, 07300 Inca, Spain                             
+#> 14 Plaça d'Espanya   39.8   2.74 Plaça d'Espanya, 07109 Fornalutx, Spain                        
+#> 15 Plaça d'Espanya   39.5   3.15 Plaça d'Espanya, 07200 Felanitx, Spain                         
+#> 16 Plaça d'Espanya   39.6   2.42 plaça d'Espanya, 07150 Andratx, Spain                          
+#> 17 Plaça d'Espanya   39.5   2.58 Plaça d'Espanya, 07181 Bendinat, Spain                         
+#> 18 Plaça d'Espanya   39.0   1.53 Plaça d'Espanya, 07840 Santa Eulària des Riu, Spain
+```
+
+Note that OpenCage does not support point-of-interest or feature search,
+like “show me all bus stops in this area”. If you are more interested in
+these kind of features, you might want to take a look at the
+{[osmdata](https://docs.ropensci.org/osmdata/)} package.
+
+### `proximity`
+
+The `proximity` parameter provides OpenCage with a hint to bias results
+in favour of those closer to the specified location. It is just one of
+many factors used for ranking results, however, and (some) results may
+be far away from the location or point passed to the `proximity`
+parameter. A point is a named numeric vector of a latitude and longitude
+coordinate pair in decimal format. The `proximity` parameter can most
+easily be specified with the
+[`oc_points()`](https://docs.ropensci.org/opencage/reference/oc_points.md)
+helper. For example, `proximity = oc_point(38.0, -84.5)`, if you happen
+to already know the coordinates. If not, you can also look them up with
+{opencage}, of course:
+
+``` r
+
+lx <- oc_forward_df("Lexington, Kentucky")
+
+lx_point <- oc_points(lx$oc_lat, lx$oc_lng)
+
+oc_forward_df(placename = "Paris", proximity = lx_point, limit = 5)
+#> # A tibble: 2 × 4
+#>   placename oc_lat oc_lng oc_formatted                             
+#>   <chr>      <dbl>  <dbl> <chr>                                    
+#> 1 Paris       38.2 -84.3  Paris, Kentucky, United States of America
+#> 2 Paris       48.9   2.35 Paris, France
+```
+
+Note that the French capital is listed before other places in the US,
+which are closer to the point provided. This illustrates how `proximity`
+is only one of many factors influencing the ranking of results.
+
+### Confidence
+
+`min_confidence` — an integer value between 0 and 10 — indicates the
+precision of the returned result as defined by its geographical extent,
+i.e. by the extent of the result’s bounding box. When you specify
+`min_confidence`, only results with at least the requested confidence
+will be returned. Thus, in the following example, the French capital is
+too large to be returned.
+
+``` r
+
+oc_forward_df(placename = "Paris", min_confidence = 7, limit = 5)
+#> # A tibble: 1 × 4
+#>   placename oc_lat oc_lng oc_formatted
+#>   <chr>      <dbl>  <dbl> <chr>       
+#> 1 Paris         NA     NA <NA>
+```
+
+Note that confidence is not used for the [ranking of
+results](https://opencagedata.com/api#ranking). It does not tell you
+which result is more “correct” or “relevant”, nor what type of thing the
+result is, but rather how small a result is, geographically speaking.
+See the [API documentation](https://opencagedata.com/api#confidence) for
+details.
+
+## Retrieve more information from the API
+
+Besides parameters to target your search better, OpenCage offers
+parameters to receive more or specific types of information from the
+API.
+
+### `language`
+
+If you would like to get your results in a specific language, you can
+pass an [IETF BCP 47 language
+tag](https://en.wikipedia.org/wiki/IETF_language_tag), such as “tr” for
+Turkish or “pt-BR” for Brazilian Portuguese, to the `language`
+parameter. OpenCage will attempt to return results in that language.
+
+``` r
+
+oc_forward_df(placename = "Munich", language = "tr")
+#> # A tibble: 1 × 4
+#>   placename oc_lat oc_lng oc_formatted           
+#>   <chr>      <dbl>  <dbl> <chr>                  
+#> 1 Munich      48.1   11.6 Münih, Bavyera, Almanya
+```
+
+Alternatively, you can specify the “native” tag, in which case OpenCage
+will attempt to return the response in the “official” language(s) of the
+location. Keep in mind, however, that some countries have more than one
+official language or that the official language may not be the one
+actually used day-to-day.
+
+``` r
+
+oc_forward_df(placename = "Munich", language = "native")
+#> # A tibble: 1 × 4
+#>   placename oc_lat oc_lng oc_formatted                
+#>   <chr>      <dbl>  <dbl> <chr>                       
+#> 1 Munich      48.1   11.6 München, Bayern, Deutschland
+```
+
+If the `language` parameter is set to `NULL` (which is the default), the
+tag is not recognized, or OpenCage does not have a record in that
+language, the results will be returned in English.
+
+``` r
+
+oc_forward_df(placename = "München")
+#> # A tibble: 1 × 4
+#>   placename oc_lat oc_lng oc_formatted            
+#>   <chr>      <dbl>  <dbl> <chr>                   
+#> 1 München     48.1   11.6 Munich, Bavaria, Germany
+```
+
+To find the correct language tag for your desired language, you can
+search for the language on the [BCP47 language subtag
+lookup](https://r12a.github.io/app-subtags/) for example. Note however,
+that there are some language tags in use on OpenStreetMap, one of
+OpenCage’s main sources, that do not conform with the IETF BCP 47
+standard. For example, OSM uses
+[`zh_pinyin`](https://wiki.openstreetmap.org/w/index.php?title=Multilingual_names#China)
+instead of `zh-Latn-pinyin` for [Hanyu
+Pinyin](https://en.wikipedia.org/wiki/Pinyin). It might, therefore, be
+helpful to consult the details page of the target country on
+openstreetmap.org to see which language tags are actually used. In any
+case, neither the OpenCage API nor the functions in this package will
+validate the language tags you provide.
+
+For further details, see [OpenCage’s API
+documentation](https://opencagedata.com/api#language).
+
+### Annotations
+
+OpenCage supplies additional information about the result location in
+what it calls [annotations](https://opencagedata.com/api#annotations).
+Annotations include, among a variety of other types of information,
+country information, time of sunset and sunrise, [UN
+M49](https://en.wikipedia.org/wiki/UN_M49) codes or the location in
+different geocoding formats, like
+[Maidenhead](https://en.wikipedia.org/wiki/Maidenhead_Locator_System),
+[Mercator projection](https://en.wikipedia.org/wiki/Mercator_projection)
+([EPSG:3857](https://epsg.io/3857)),
+[geohash](https://en.wikipedia.org/wiki/Geohash) or
+[what3words](https://en.wikipedia.org/wiki/What3words). Some
+annotations, like the [Irish Transverse
+Mercator](https://en.wikipedia.org/wiki/Irish_Transverse_Mercator) (ITM,
+[EPSG:2157](https://epsg.io/2157)) or the [Federal Information
+Processing
+Standards](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standards)
+(FIPS) code will only be shown when appropriate.
+
+Whether the annotations are shown, is controlled by the `no_annotations`
+argument. It is `TRUE` by default, which means that the output will
+*not* contain annotations. When you set `no_annotations` to `FALSE`, all
+columns are returned (i.e. `output` is implicitly set to `"all"`). This
+leads to a result with a *lot* of columns.
+
+``` r
+
+oc_forward_df("Dublin", no_annotations = FALSE) |> colnames()
+#>  [1] "placename"                         "oc_lat"                            "oc_lng"                           
+#>  [4] "oc_confidence"                     "oc_formatted"                      "oc_mgrs"                          
+#>  [7] "oc_maidenhead"                     "oc_callingcode"                    "oc_flag"                          
+#> [10] "oc_geohash"                        "oc_qibla"                          "oc_wikidata"                      
+#> [13] "oc_dms_lat"                        "oc_dms_lng"                        "oc_itm_easting"                   
+#> [16] "oc_itm_northing"                   "oc_mercator_x"                     "oc_mercator_y"                    
+#> [19] "oc_nuts_nuts0_code"                "oc_nuts_nuts1_code"                "oc_nuts_nuts2_code"               
+#> [22] "oc_nuts_nuts3_code"                "oc_osm_edit_url"                   "oc_osm_note_url"                  
+#> [25] "oc_osm_url"                        "oc_un_m49_statistical_groupings"   "oc_un_m49_regions_europe"         
+#> [28] "oc_un_m49_regions_ie"              "oc_un_m49_regions_northern_europe" "oc_un_m49_regions_world"          
+#> [31] "oc_currency_alternate_symbols"     "oc_currency_decimal_mark"          "oc_currency_html_entity"          
+#> [34] "oc_currency_iso_code"              "oc_currency_iso_numeric"           "oc_currency_name"                 
+#> [37] "oc_currency_smallest_denomination" "oc_currency_subunit"               "oc_currency_subunit_to_unit"      
+#> [40] "oc_currency_symbol"                "oc_currency_symbol_first"          "oc_currency_thousands_separator"  
+#> [43] "oc_roadinfo_drive_on"              "oc_roadinfo_speed_in"              "oc_sun_rise_apparent"             
+#> [46] "oc_sun_rise_astronomical"          "oc_sun_rise_civil"                 "oc_sun_rise_nautical"             
+#> [49] "oc_sun_set_apparent"               "oc_sun_set_astronomical"           "oc_sun_set_civil"                 
+#> [52] "oc_sun_set_nautical"               "oc_timezone_name"                  "oc_timezone_now_in_dst"           
+#> [55] "oc_timezone_offset_sec"            "oc_timezone_offset_string"         "oc_timezone_short_name"           
+#> [58] "oc_what3words_words"               "oc_northeast_lat"                  "oc_northeast_lng"                 
+#> [61] "oc_southwest_lat"                  "oc_southwest_lng"                  "oc_iso_3166_1_alpha_2"            
+#> [64] "oc_iso_3166_1_alpha_3"             "oc_iso_3166_2"                     "oc_category"                      
+#> [67] "oc_normalized_city"                "oc_type"                           "oc_city"                          
+#> [70] "oc_continent"                      "oc_country"                        "oc_country_code"                  
+#> [73] "oc_county"                         "oc_county_code"                    "oc_political_union"               
+#> [76] "oc_region"
+```
+
+### `roadinfo`
+
+`roadinfo` indicates whether the geocoder should attempt to match the
+nearest road (rather than an address) and provide additional road and
+driving information. It is `FALSE` by default, which means OpenCage will
+not attempt to match the nearest road. Some road and driving information
+is nevertheless provided as part of the annotations (see above), even
+when `roadinfo` is set to `FALSE`.
+
+``` r
+
+library(dplyr, warn.conflicts = FALSE)
+oc_forward_df(placename = c("Europa Advance Rd", "Bovoni Rd"), roadinfo = TRUE) |>
+select(placename, contains("roadinfo"))
+#> # A tibble: 2 × 8
+#>   placename         oc_roadinfo_drive_on oc_roadinfo_lanes oc_roadinfo_oneway oc_roadinfo_road    oc_roadinfo_road_type
+#>   <chr>             <chr>                            <int> <chr>              <chr>               <chr>                
+#> 1 Europa Advance Rd right                                1 yes                Europa Advance Road secondary            
+#> 2 Bovoni Rd         left                                NA <NA>               Bovoni Bay Trail    residential          
+#> # ℹ 2 more variables: oc_roadinfo_speed_in <chr>, oc_roadinfo_surface <chr>
+```
+
+A [blog
+post](https://blog.opencagedata.com/post/new-optional-parameter-roadinfo)
+provides more details.
+
+### Abbreviated addresses
+
+The geocoding functions also have an `abbr` parameter, which is `FALSE`
+by default. When it is `TRUE`, the addresses in the `formatted` field of
+the results are abbreviated (e.g. “Main St.” instead of “Main Street”).
+
+``` r
+
+oc_forward_df("Wall Street")
+#> # A tibble: 1 × 4
+#>   placename   oc_lat oc_lng oc_formatted                                             
+#>   <chr>        <dbl>  <dbl> <chr>                                                    
+#> 1 Wall Street   40.7  -74.0 Wall Street, New York, NY 10005, United States of America
+oc_forward_df("Wall Street", abbrv = TRUE)
+#> # A tibble: 1 × 4
+#>   placename   oc_lat oc_lng oc_formatted                    
+#>   <chr>        <dbl>  <dbl> <chr>                           
+#> 1 Wall Street   40.7  -74.0 Wall St, New York, NY 10005, USA
+```
+
+See [this blog
+post](https://blog.opencagedata.com/post/160294347883/shrtr-pls) for
+more information.
+
+### `address_only`
+
+When `address_only` is set to `TRUE` (by default `FALSE`), OpenCage will
+attempt to exclude names of points-of-interests from the `formatted`
+field of the results. In the following example, the POI “Hôtel de ville
+de Nantes” (town hall of Nantes) is removed from the `oc_formatted`
+column with `address_only = TRUE`.
+
+``` r
+
+oc_reverse_df(47.21947, -1.54754)
+#> # A tibble: 1 × 3
+#>   latitude longitude oc_formatted                                    
+#>      <dbl>     <dbl> <chr>                                           
+#> 1     47.2     -1.55 Le Palais, 37 Rue Gambetta, 44013 Nantes, France
+oc_reverse_df(47.21947, -1.54754, address_only = TRUE)
+#> # A tibble: 1 × 3
+#>   latitude longitude oc_formatted                         
+#>      <dbl>     <dbl> <chr>                                
+#> 1     47.2     -1.55 37 Rue Gambetta, 44013 Nantes, France
+```
+
+## Vectorised arguments
+
+All of the function arguments mentioned above are vectorised, so you can
+send queries like this:
+
+``` r
+
+oc_forward_df(
+  placename = c("New York", "Rio", "Tokyo"),
+  language = c("es", "de", "fr")
+)
+#> # A tibble: 3 × 4
+#>   placename oc_lat oc_lng oc_formatted                                                     
+#>   <chr>      <dbl>  <dbl> <chr>                                                            
+#> 1 New York    40.7  -74.0 Nueva York, Estados Unidos de América                            
+#> 2 Rio        -22.9  -43.2 Rio de Janeiro, Região Metropolitana do Rio de Janeiro, Brasilien
+#> 3 Tokyo       35.7  140.  Tokyo, Japon
+```
+
+Or geocode place names with country codes in a data frame:
+
+``` r
+
+for_df <-
+  data.frame(
+    location = c("Golden Gate Bridge", "Buckingham Palace", "Eiffel Tower"),
+    ccode = c("at", "cg", "be")
+  )
+
+oc_forward_df(for_df, placename = location, countrycode = ccode)
+#> # A tibble: 3 × 5
+#>   location           ccode oc_lat oc_lng oc_formatted                                                                    
+#>   <chr>              <chr>  <dbl>  <dbl> <chr>                                                                           
+#> 1 Golden Gate Bridge at     47.6   15.8  Wiesenbauer, Martin's Golden Gate Bridge, 8684 Steinhaus am Semmering, Austria  
+#> 2 Buckingham Palace  cg     -4.80  11.8  Buckingham Palace, Boulevard du Général Charles de Gaulle, Pointe-Noire, Congo-…
+#> 3 Eiffel Tower       be     50.9    4.34 Eiffel Tower, Avenue de Bouchout - Boechoutlaan, 1020 Brussels, Belgium
+```
+
+This also works with
+[`oc_reverse_df()`](https://docs.ropensci.org/opencage/reference/oc_reverse_df.md),
+of course.
+
+``` r
+
+rev_df <-
+  data.frame(
+    lat = c(52.38772, 41.40137),
+    lon = c(9.73336, 2.12868)
+  )
+
+oc_reverse_df(rev_df, lat, lon, language = "native")
+#> # A tibble: 2 × 3
+#>     lat   lon oc_formatted                                    
+#>   <dbl> <dbl> <chr>                                           
+#> 1  52.4  9.73 Philipsbornstraße 2, 30165 Hannover, Deutschland
+#> 2  41.4  2.13 Carrer de Calatrava, 64, 08017 Barcelona, España
+```
+
+## Further information
+
+For further information about the output and query parameters, see the
+[OpenCage API docs](https://opencagedata.com/api) and the [OpenCage
+FAQ](https://opencagedata.com/faq). When building queries, OpenCage’s
+[best practices](https://opencagedata.com/api#bestpractices) can be very
+useful, as well as their guide to [geocoding
+accuracy](https://opencagedata.com/guides/how-to-think-about-geocoding-accuracy).
