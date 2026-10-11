@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "2e09688b30ef367715cf15eebc86d6538544ac9f",
+    "author": "Daniel Possenriede <possenriede@gmail.com>",
+    "time": "2026-10-11T13:27:26Z",
+    "files": 4,
+    "merge": false,
+    "message": "[chore] remove discuss.ropensi.org references\n\nand update URLs\n"
+  },
+  "repo": "https://github.com/ropensci/opencage",
+  "pkg": "opencage",
+  "time": "2026-10-11T15:57:07Z"
+}
