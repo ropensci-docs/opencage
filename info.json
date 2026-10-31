@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "c460f7571c0cb0dbd0515c05180a580182b8c09e",
+    "author": "Daniel Possenriede <possenriede@gmail.com>",
+    "time": "2026-10-31T17:57:38Z",
+    "files": 4,
+    "merge": false,
+    "message": "update citation workflow et al. (#178)\n\n* update workflows\n\n* Update CITATION.cff (GHA)"
+  },
+  "repo": "https://github.com/ropensci/opencage",
+  "pkg": "opencage",
+  "time": "2026-10-31T22:24:51Z"
+}
